@@ -6,7 +6,6 @@ INPUT_COMMENT = "%"
 INPUT_TESTS_AMOUNT = "Number of tests"
 INPUT_MACHINES_AMOUNT = "Number of machines"
 INPUT_RESOURCES_AMOUNT = "Number of resources"
-INPUT_MAKESPAN = "Maximum makespan"
 INPUT_TEST = "test("
 
 parser = argparse.ArgumentParser()
@@ -14,7 +13,9 @@ parser.add_argument('input')
 
 args = parser.parse_args()
 
-tests = []
+durations = []
+machines = []
+resources = []
 
 def getId(s):
     return int(s.strip()[2:-1])
@@ -27,7 +28,16 @@ def getIds(s):
         for element in unformattedList:
             ids.append(getId(element))
 
-    return ids
+    return set(ids)
+
+def fillMachines(machines):
+    if len(machines) != 0:
+        return machines
+
+    for i in range(1, numMachines + 1):
+        machines.add(i)
+
+    return machines
 
 with open(args.input, 'r') as file:
     testPattern = re.compile(r"test\( 't(\d+)', (\d+), \[(.*?)\], \[(.*?)\]\)")
@@ -41,32 +51,38 @@ with open(args.input, 'r') as file:
                 numMachines = value
             elif INPUT_RESOURCES_AMOUNT in line:
                 numResources = value
-            elif INPUT_MAKESPAN in line:
-                maxMakespan = value
         
         elif line.startswith(INPUT_TEST):
             match = testPattern.search(line)
             id, duration, unformattedMachines, unformattedResources = match.groups()
 
-            tests.append({ 'id': id, 'duration': duration, 'machines': getIds(unformattedMachines), 'resources': getIds(unformattedResources) })
+            durations.append(int(duration))
+            machines.append(fillMachines(getIds(unformattedMachines)))
+            resources.append(getIds(unformattedResources))
 
 print("Input:")
 print("Tests: " + str(numTests))
 print("Machines: " + str(numMachines))
 print("Resources: " + str(numResources))
-print("Maximum makespan: " + str(maxMakespan))
+print("Durations:")
+print(durations)
+print("Machines:")
+print(machines)
+print("Resources:")
+print(resources)
 
-for test in tests:
-    print(test)
-
-# Load n-Queens model from file
-nqueens = Model("./nqueens.mzn")
-# Find the MiniZinc solver configuration for Gecode
+minizincSolver = Model("./Solver.mzn")
 gecode = Solver.lookup("gecode")
-# Create an Instance of the n-Queens model for Gecode
-instance = Instance(gecode, nqueens)
-# Assign 4 to n
-instance["n"] = 4
+instance = Instance(gecode, minizincSolver)
+
+instance["nTests"] = numTests
+instance["nMachines"] = numMachines
+instance["nResources"] = numResources
+instance["durations"] = durations
+instance["machinesAvailable"] = machines
+instance["resourcesRequired"] = resources
+
 result = instance.solve()
-# Output the array q
-print(result["q"])
+print("---------------------------------------------------------")
+print(result)
+print("Makespan: " + str(result["objective"]))
