@@ -1,6 +1,8 @@
 from minizinc import Instance, Model, Solver
 import argparse
 import re
+from functools import cmp_to_key
+import itertools
 
 INPUT_COMMENT = "%"
 INPUT_TESTS_AMOUNT = "Number of tests"
@@ -12,10 +14,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('input')
 
 args = parser.parse_args()
-
-durations = []
-machines = []
-resources = []
 
 def getId(s):
     return int(s.strip()[2:-1])
@@ -39,6 +37,7 @@ def fillMachines(machines):
 
     return machines
 
+tests = []
 with open(args.input, 'r') as file:
     testPattern = re.compile(r"test\( 't(\d+)', (\d+), \[(.*?)\], \[(.*?)\]\)")
 
@@ -56,9 +55,44 @@ with open(args.input, 'r') as file:
             match = testPattern.search(line)
             id, duration, unformattedMachines, unformattedResources = match.groups()
 
-            durations.append(int(duration))
-            machines.append(fillMachines(getIds(unformattedMachines)))
-            resources.append(getIds(unformattedResources))
+            tests.append((int(duration), fillMachines(getIds(unformattedMachines)), getIds(unformattedResources)))
+
+def comparator(test1, test2):
+    machinesDiff = len(test1[1]) - len(test2[1])
+    if machinesDiff != 0:
+        return machinesDiff
+
+    resourcesDiff = -(len(test1[2]) - len(test2[2]))
+    if resourcesDiff != 0:
+        return resourcesDiff
+
+    return -(test1[0] - test2[0])
+
+tests.sort(key=cmp_to_key(comparator))
+
+durations = []
+machines = []
+resources = []
+
+for test in tests:
+    durations.append(test[0])
+    machines.append(test[1])
+    resources.append(test[2])
+
+def calculateCombinations(durations):
+    possibleSums = {0}
+
+    for i in range(1, len(durations)):
+        for combination in itertools.combinations(durations, i):
+            possibleSums.add(sum(combination))
+        
+    return possibleSums
+
+possibleStartTimes = [0, 422]# calculateCombinations(durations)
+possibleStartTimes = list(possibleStartTimes)
+possibleStartTimes.sort()
+print(possibleStartTimes)
+print("len: " + str(len(possibleStartTimes)))
 
 print("Input:")
 print("Tests: " + str(numTests))
@@ -81,6 +115,7 @@ instance["nResources"] = numResources
 instance["durations"] = durations
 instance["machinesAvailable"] = machines
 instance["resourcesRequired"] = resources
+instance["possibleStartTimes"] = possibleStartTimes
 
 result = instance.solve()
 print("---------------------------------------------------------")
