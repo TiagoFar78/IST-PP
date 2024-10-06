@@ -1,7 +1,7 @@
 int: nTests;
 int: nMachines;
 int: nResources;
-int: lowerBound;
+%int: lowerBound;
 
 array[1..nTests] of int: durations;
 array[1..nTests] of set of int: machinesAvailable;
@@ -10,7 +10,7 @@ array[1..nTests] of set of int: resourcesRequired;
 array[1..nTests] of var 0..nMachines: tasksMachine;
 array[1..nTests] of var 0..sum(durations) - min(durations): startTimes;
 
-%var max(durations)..sum(durations): lowerBound;
+var max(durations)..sum(durations): lowerBound;
 
 constraint forall(t in 1..nTests) (
     startTimes[t] + durations[t] <= lowerBound

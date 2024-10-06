@@ -189,4 +189,4 @@ def solveWithBinaryLowerBound():
 
     print("Makespan: " + str(makespan))
 
-solveWithBinaryLowerBound()
+solveWithLowerBoundVar()
