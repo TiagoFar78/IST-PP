@@ -1,19 +1,24 @@
 int: nTests;
 int: nMachines;
 int: nResources;
+int: lowerBound;
 
 array[1..nTests] of int: durations;
 array[1..nTests] of set of int: machinesAvailable;
 array[1..nTests] of set of int: resourcesRequired;
 
 array[1..nTests] of var 0..nMachines: tasksMachine;
-array[1..nTests] of var 0..sum(durations) - min(durations): startTimes;
-
-var max(durations)..sum(durations): lowerBound;
+array[1..nTests] of var 0..lowerBound - min(durations): startTimes;
 
 constraint forall(t in 1..nTests) (
     startTimes[t] + durations[t] <= lowerBound
 );
+
+%constraint forall(t in 1..nTests) (
+%    startTimes[t] == 0 \/ exists(t2 in 1..nTests where t != t2) (
+%        startTimes[t] == startTimes[t2] + durations[t2]
+%    )
+%);
 
 constraint forall(r in 1..nResources, t1 in 1..nTests, t2 in 1..nTests) (
     if t1 != t2 /\ r in resourcesRequired[t1] /\ r in resourcesRequired[t2] then
@@ -31,6 +36,6 @@ constraint forall(t1 in 1..nTests, t2 in 1..nTests) (
     endif
 );
 
-solve
-:: int_search([lowerBound], input_order, indomain_split, complete)
-minimize lowerBound;
+solve 
+:: int_search(startTimes, input_order, indomain_min, complete)
+satisfy;
