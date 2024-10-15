@@ -110,7 +110,7 @@ def solveWithLowerBoundVar(numTests, numMachines, numResources, durations, machi
 
     result = instance.solve()
 
-    print("makespan: " + str(result["lowerBound"]))
+    return result["lowerBound"]
 
 def solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests):
     model = Model("./SolverBinary.mzn")
