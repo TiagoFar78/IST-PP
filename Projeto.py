@@ -3,7 +3,7 @@ import argparse
 import re
 import time
 from functools import cmp_to_key
-import itertools
+# import signal
 
 SOLVER = "highs"
 
@@ -13,10 +13,23 @@ INPUT_MACHINES_AMOUNT = "Number of machines"
 INPUT_RESOURCES_AMOUNT = "Number of resources"
 INPUT_TEST = "test("
 
+OUTPUT_FILE = "output.txt"
+
 parser = argparse.ArgumentParser()
 parser.add_argument('input')
 
 args = parser.parse_args()
+
+######################################################
+#                      Timeouts                      #
+######################################################
+
+'''
+def handler(signum, frame):
+    print("deu merda equipa")
+
+signal.signal(signal.SIGALRM, handler)
+'''
 
 ######################################################
 #                   Pre-processing                   #
@@ -80,7 +93,7 @@ def getMinLowerBound(numResources, tests):
 #                       Models                       #
 ######################################################
 
-def isCompleteForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, lowerBound):
+def isSolvableForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, lowerBound):
     instance = Instance(solver, model)
 
     instance["nTests"] = numTests
@@ -91,9 +104,7 @@ def isCompleteForLowerbound(solver, model, numTests, numMachines, numResources, 
     instance["resourcesRequired"] = resources
     instance["lowerBound"] = lowerBound
 
-    result = instance.solve()
-
-    return result.status == Status.SATISFIED
+    return instance.solve()
 
 def solveWithLowerBoundVar(numTests, numMachines, numResources, durations, machines, resources, tests):
     model = Model("./Solver.mzn")
@@ -119,7 +130,7 @@ def solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, ma
     minLowerBound = getMinLowerBound(numResources, tests)
     l = minLowerBound
     r = sum(durations)
-    satisfiedLast = False
+    finalResult = None
 
     while l < r - 1:
         mid = int((l + r) / 2)
@@ -127,29 +138,99 @@ def solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, ma
         print("Vai tentar o lowerbound " + str(mid))
 
         start_time = time.time()
-        isComplete = isCompleteForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, mid)
+        result = isSolvableForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, mid)
         elapsed_time = time.time() - start_time
 
-        if isComplete:
+        if result.status == Status.SATISFIED:
             print("Satisfez: " + str(mid) + f" em: {elapsed_time:.4f}")
             r = mid
-            satisfiedLast = True
+            finalResult = result
+            lowerBound = r
         else:
             print("Não satisfez: " + str(mid) + f" em: {elapsed_time:.4f}")
             l = mid
-            satisfiedLast = False
+            finalResult = result
+            lowerBound = l
 
     if l == minLowerBound:
-        return l if isCompleteForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, l) else r
+        result = isSolvableForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, l)
+        return (result, l) if result.status == Status.SATISFIED else (finalResult, r)
 
-    if not satisfiedLast:
-        return l
+    return (finalResult, lowerBound)
 
-    return r
+def solveWithStepLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests):
+    model = Model("./SolverBinary.mzn")
+    solver = Solver.lookup(SOLVER)
+    minLowerBound = getMinLowerBound(numResources, tests)
+    print("O maximo lowerBound é " + str(sum(durations)) + " o minimo é " + str(minLowerBound))
+    current = sum(durations)
+    divisor = 2
+    step = (current + minLowerBound) // divisor
+    prevStep = step
+
+    while True:
+        print("Vai tentar o lowerbound " + str(current) + " e vai aplicar depois o step " + str(step))
+
+        start_time = time.time()
+        isSolvable = isSolvableForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, current)
+        elapsed_time = time.time() - start_time
+
+        if isSolvable:
+            print("Satisfez: " + str(current) + f" em: {elapsed_time:.4f}")
+
+            while current - step < minLowerBound:
+                step = step // divisor
+        
+            current -= step
+            prevStep = step
+            if step > divisor - 1:
+                step = step // divisor
+        else:
+            print("Não satisfez: " + str(current) + f" em: {elapsed_time:.4f}")
+            if step == 1 and prevStep == 1:
+                return current + 1
+
+            minLowerBound = current + 1
+
+            step = (current + prevStep + minLowerBound) // 2
+            current += prevStep - step
+
+    return minLowerBound
 
 ######################################################
 #                      Solution                      #
 ######################################################
+
+def writeSolutionToFile(result, lowerBound, ids, numTests, numMachines, resources):
+    startTimes = result["startTimes"]
+    tasksMachine = result["tasksMachine"]
+
+    machinesSchedule = []
+    for i in range(0, numMachines):
+        machinesSchedule.append([])
+
+    for i in range(0, numTests):
+        machinesSchedule[tasksMachine[i] - 1].append((ids[i], startTimes[i], resources[i]))
+
+    with open(OUTPUT_FILE, "w") as file:
+        file.write(f"% Makespan : {lowerBound}\n")
+
+        for i in range(0, numMachines):
+            length = len(machinesSchedule[i])
+            startTimesString = []
+            for j in range(0, length):
+                resourcesListString = []
+                for resource in machinesSchedule[i][j][2]:
+                    resourcesListString.append(f"'r{resource}'")
+
+                if len(resourcesListString) != 0:
+                    resourcesString = f",[{','.join(resourcesListString)}]"
+                else:
+                    resourcesString = ""
+
+                startTimesString.append(f"('t{machinesSchedule[i][j][0]}',{machinesSchedule[i][j][1]}{resourcesString})")
+
+            file.write(f"machine( 'm{i+1}', {length}, [{','.join(startTimesString)}])\n")
 
 def solve(input):
     tests = []
@@ -170,15 +251,17 @@ def solve(input):
                 match = testPattern.search(line)
                 id, duration, unformattedMachines, unformattedResources = match.groups()
 
-                tests.append((int(duration), fillMachines(getIds(unformattedMachines), numMachines), getIds(unformattedResources)))
+                tests.append((int(duration), fillMachines(getIds(unformattedMachines), numMachines), getIds(unformattedResources), id))
     
     tests.sort(key=cmp_to_key(comparator))
 
+    ids = []
     durations = []
     machines = []
     resources = []
 
     for test in tests:
+        ids.append(test[3])
         durations.append(test[0])
         machines.append(test[1])
         resources.append(test[2])
@@ -194,7 +277,7 @@ def solve(input):
     print("Resources:")
     print(resources)
 
-    makespan = solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests)
-    print("Makespan: " + str(makespan))
+    solution = solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests)
+    writeSolutionToFile(solution[0], solution[1], ids, numTests, numMachines, resources)
 
 solve(args.input)
