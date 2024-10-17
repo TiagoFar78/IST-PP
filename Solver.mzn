@@ -9,10 +9,10 @@ array[1..nTests] of set of int: resourcesRequired;
 array[1..nTests] of var 0..nMachines: tasksMachine;
 array[1..nTests] of var 0..sum(durations) - min(durations): startTimes;
 
-var max(durations)..sum(durations): lowerBound;
+var max(durations)..sum(durations): makespan;
 
 constraint forall(t in 1..nTests) (
-    startTimes[t] + durations[t] <= lowerBound
+    startTimes[t] + durations[t] <= makespan
 );
 
 constraint forall(r in 1..nResources, t1 in 1..nTests, t2 in 1..nTests) (
@@ -32,5 +32,5 @@ constraint forall(t1 in 1..nTests, t2 in 1..nTests) (
 );
 
 solve
-:: int_search([lowerBound], input_order, indomain_split, complete)
-minimize lowerBound;
+:: int_search([makespan], input_order, indomain_split, complete)
+minimize makespan;

@@ -13,11 +13,11 @@ INPUT_MACHINES_AMOUNT = "Number of machines"
 INPUT_RESOURCES_AMOUNT = "Number of resources"
 INPUT_TEST = "test("
 
-OUTPUT_FILE = "output.txt"
-TIMEOUT = 298 # 5m - 2s de seguranca
+TIMEOUT = 295 # 5m - 5s de seguranca
 
 parser = argparse.ArgumentParser()
 parser.add_argument('input')
+parser.add_argument('output')
 
 args = parser.parse_args()
 
@@ -226,7 +226,7 @@ def getObviousSolution(tests):
 
     return (makespan, startTimes, tasksMachine)
 
-def writeSolutionToFile(result, lowerBound, ids, numTests, numMachines, tests):
+def writeSolutionToFile(output, result, lowerBound, ids, numTests, numMachines, tests):
     if result != None:
         startTimes = result["startTimes"]
         tasksMachine = result["tasksMachine"]
@@ -240,7 +240,7 @@ def writeSolutionToFile(result, lowerBound, ids, numTests, numMachines, tests):
     for i in range(0, numTests):
         machinesSchedule[tasksMachine[i] - 1].append((ids[i], startTimes[i], tests[i][2]))
 
-    with open(OUTPUT_FILE, "w") as file:
+    with open(output, "w") as file:
         file.write(f"% Makespan : {lowerBound}\n")
 
         for i in range(0, numMachines):
@@ -260,7 +260,7 @@ def writeSolutionToFile(result, lowerBound, ids, numTests, numMachines, tests):
 
             file.write(f"machine( 'm{i+1}', {length}, [{','.join(startTimesString)}])\n")
 
-def solve(input):
+def solve(input, output):
     tests = []
     with open(input, 'r') as file:
         testPattern = re.compile(r"test\( 't(\d+)', (\d+), \[(.*?)\], \[(.*?)\]\)")
@@ -305,8 +305,8 @@ def solve(input):
     print("Resources:")
     print(resources)
 
-    writeSolutionToFile(None, 0, ids, numTests, numMachines, tests) # Makes sure there is at least the obvious solution
+    writeSolutionToFile(output, None, 0, ids, numTests, numMachines, tests) # Makes sure there is at least the obvious solution
     solution = solveWithStepLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests, time.time())
-    writeSolutionToFile(solution[0], solution[1], ids, numTests, numMachines, tests)
+    writeSolutionToFile(output, solution[0], solution[1], ids, numTests, numMachines, tests)
 
-solve(args.input)
+solve(args.input, args.output)

@@ -14,12 +14,6 @@ constraint forall(t in 1..nTests) (
     startTimes[t] + durations[t] <= lowerBound
 );
 
-%constraint forall(t in 1..nTests) (
-%    startTimes[t] == 0 \/ exists(t2 in 1..nTests where t != t2) (
-%        startTimes[t] == startTimes[t2] + durations[t2]
-%    )
-%);
-
 constraint forall(r in 1..nResources, t1 in 1..nTests, t2 in 1..nTests) (
     if t1 != t2 /\ r in resourcesRequired[t1] /\ r in resourcesRequired[t2] then
         startTimes[t1] + durations[t1] <= startTimes[t2] \/ startTimes[t2] + durations[t2] <= startTimes[t1] 
