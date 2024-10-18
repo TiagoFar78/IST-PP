@@ -126,7 +126,6 @@ def solveWithLowerBoundVar(numTests, numMachines, numResources, durations, machi
 def solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests, startTimeStamp):
     model = Model("./SolverBinary.mzn")
     solver = Solver.lookup(SOLVER)
-    print("O maximo lowerBound é " + str(sum(durations)))
     minLowerBound = getMinLowerBound(numResources, tests)
     l = minLowerBound
     r = sum(durations)
@@ -134,20 +133,15 @@ def solveWithBinaryLowerBound(numTests, numMachines, numResources, durations, ma
 
     while l < r - 1:
         mid = int((l + r) / 2)
-
-        print("Vai tentar o lowerbound " + str(mid))
-
         start_time = time.time()
         result = isSolvableForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, mid, TIMEOUT)
         elapsed_time = time.time() - start_time
 
         if result.status == Status.SATISFIED:
-            print("Satisfez: " + str(mid) + f" em: {elapsed_time:.4f}")
             r = mid
             finalResult = result
             lowerBound = r
         else:
-            print("Não satisfez: " + str(mid) + f" em: {elapsed_time:.4f}")
             l = mid
             finalResult = result
             lowerBound = l
@@ -162,7 +156,6 @@ def solveWithStepLowerBound(numTests, numMachines, numResources, durations, mach
     model = Model("./SolverBinary.mzn")
     solver = Solver.lookup(SOLVER)
     minLowerBound = getMinLowerBound(numResources, tests)
-    print("O maximo lowerBound é " + str(sum(durations)) + " o minimo é " + str(minLowerBound))
     current = sum(durations)
     divisor = 2
     step = (current + minLowerBound) // divisor
@@ -174,10 +167,7 @@ def solveWithStepLowerBound(numTests, numMachines, numResources, durations, mach
     while True:
         iterationMaxDuration = calculateTimeForIteration(lastIterationDuration, startTimeStamp)
         if iterationMaxDuration <= 0:
-            print("Esgotou os 5m")
             return (finalResult, finalLowerBound)
-
-        print("Vai tentar o lowerbound " + str(current) + " por um maximo de " + str(iterationMaxDuration) + " e vai aplicar depois o step " + str(step))
 
         start_time = time.time()
         result = isSolvableForLowerbound(solver, model, numTests, numMachines, numResources, durations, machines, resources, current, iterationMaxDuration)
@@ -185,14 +175,12 @@ def solveWithStepLowerBound(numTests, numMachines, numResources, durations, mach
 
         if result.status == Status.SATISFIED:
             lastIterationDuration = max(elapsed_time, lastIterationDuration)
-            print("Satisfez: " + str(current) + f" em: {elapsed_time:.4f}")
             if current == minLowerBound:
                 return (result, current)
 
             finalResult = result
             finalLowerBound = current
         else:
-            print("Não satisfez: " + str(current) + f" em: {elapsed_time:.4f}")
             if step == 1 and prevStep == 1:
                 break
 
@@ -293,17 +281,6 @@ def solve(input, output):
         durations.append(test[0])
         machines.append(set(test[1]))
         resources.append(set(test[2]))
-
-    print("Input:")
-    print("Tests: " + str(numTests))
-    print("Machines: " + str(numMachines))
-    print("Resources: " + str(numResources))
-    print("Durations:")
-    print(durations)
-    print("Machines:")
-    print(machines)
-    print("Resources:")
-    print(resources)
 
     writeSolutionToFile(output, None, 0, ids, numTests, numMachines, tests) # Makes sure there is at least the obvious solution
     solution = solveWithStepLowerBound(numTests, numMachines, numResources, durations, machines, resources, tests, time.time())
